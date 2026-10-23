@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-app = FastAPI()
+from analyzer import analyze_email
+
+
+app = FastAPI(
+    title="Malicious Email Scorer API",
+    description="Explainable heuristic analysis of potentially malicious emails.",
+    version="1.0.0"
+)
 
 
 class EmailRequest(BaseModel):
@@ -12,15 +19,16 @@ class EmailRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "service": "Malicious Email Scorer"
+    }
 
 
 @app.post("/analyze")
-def analyze_email(email: EmailRequest):
-    return {
-        "score": 50,
-        "verdict": "Suspicious",
-        "reasons": [
-            "Backend connection successful"
-        ]
-    }
+def analyze(email: EmailRequest):
+    return analyze_email(
+        sender=email.sender,
+        subject=email.subject,
+        body=email.body
+    )
