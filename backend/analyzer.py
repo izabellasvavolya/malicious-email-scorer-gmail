@@ -34,7 +34,20 @@ URL_SHORTENERS = {
 
 
 def extract_urls(text: str):
-    return re.findall(r'https?://[^\s<>"\']+', text)
+    urls = re.findall(
+        r'(?:https?://|www\.)[^\s<>"\']+',
+        text
+    )
+
+    normalized_urls = []
+
+    for url in urls:
+        if url.startswith("www."):
+            url = "https://" + url
+
+        normalized_urls.append(url)
+
+    return normalized_urls
 
 
 def is_ip_address(hostname: str):
