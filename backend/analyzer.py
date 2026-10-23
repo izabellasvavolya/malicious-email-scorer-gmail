@@ -24,6 +24,18 @@ CREDENTIAL_PHRASES = [
     "social security number",
 ]
 
+FINANCIAL_SCAM_PHRASES = [
+    "send money",
+    "credit card details",
+    "wire transfer",
+    "bank transfer",
+    "you won",
+    "you have won",
+    "million dollars",
+    "inheritance",
+    "prince",
+]
+
 URL_SHORTENERS = {
     "bit.ly",
     "tinyurl.com",
@@ -42,6 +54,9 @@ def extract_urls(text: str):
     normalized_urls = []
 
     for url in urls:
+        # Remove punctuation sometimes attached to the end of a URL
+        url = url.rstrip(".,);]")
+
         if url.startswith("www."):
             url = "https://" + url
 
@@ -80,7 +95,7 @@ def analyze_email(sender: str, subject: str, body: str):
             "Uses urgent or pressuring language"
         )
 
-    # 2. Requests for sensitive information
+    # 2. Sensitive information
     credential_matches = [
         phrase for phrase in CREDENTIAL_PHRASES
         if phrase in combined_text
@@ -92,7 +107,19 @@ def analyze_email(sender: str, subject: str, body: str):
             "Requests or references sensitive information"
         )
 
-    # 3. URLs
+    # 3. Financial scam language
+    financial_matches = [
+        phrase for phrase in FINANCIAL_SCAM_PHRASES
+        if phrase in combined_text
+    ]
+
+    if financial_matches:
+        score += 15
+        reasons.append(
+            "Contains language commonly associated with financial scams"
+        )
+
+    # 4. URL analysis
     urls = extract_urls(body)
 
     for url in urls:
@@ -130,7 +157,7 @@ def analyze_email(sender: str, subject: str, body: str):
                 "Contains a malformed or unusual URL"
             )
 
-    # 4. Sender checks
+    # 5. Sender checks
     sender_lower = sender.lower()
 
     if "xn--" in sender_lower:
@@ -139,10 +166,9 @@ def analyze_email(sender: str, subject: str, body: str):
             "Sender domain uses punycode and may imitate another domain"
         )
 
-    # Don't exceed 100
     score = min(score, 100)
 
-    # Remove duplicate reasons
+    # Remove duplicate explanations
     reasons = list(dict.fromkeys(reasons))
 
     if score >= 70:
