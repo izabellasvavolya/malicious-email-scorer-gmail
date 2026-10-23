@@ -94,9 +94,9 @@ def analyze_email(sender: str, subject: str, body: str):
                 )
 
             if parsed.scheme == "http":
-                score += 5
+                score += 3
                 reasons.append(
-                    "Contains an unencrypted HTTP link"
+                    "Contains an unencrypted HTTP link (weak signal)"
                 )
 
             if hostname.lower() in URL_SHORTENERS:
