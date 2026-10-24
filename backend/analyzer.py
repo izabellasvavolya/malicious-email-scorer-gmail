@@ -176,17 +176,16 @@ def analyze_email(sender: str, subject: str, body: str):
                 reputation["threat_types"]
             )
 
-    if external_threats:
-        score += 70
+        if external_threats:
+            score += 90
 
-        readable_threats = ", ".join(
-            sorted(external_threats)
-        )
+            readable_threats = ", ".join(
+                sorted(external_threats)
+            )
 
-        reasons.append(
-            f"External threat intelligence flags a URL as: {readable_threats}"
-        )
-
+            reasons.append(
+                f"External threat intelligence flags a URL as: {readable_threats}"
+            )   
     # 6. Sender checks
     sender_lower = sender.lower()
 
