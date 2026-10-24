@@ -1,7 +1,9 @@
 from ai_analyzer import analyze_email_with_ai
+
 import re
 from urllib.parse import urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from email.utils import parseaddr
 
 from web_risk import check_url_reputation
 
@@ -20,6 +22,7 @@ URGENT_PHRASES = [
     "final warning",
 ]
 
+
 CREDENTIAL_PHRASES = [
     "password",
     "login credentials",
@@ -30,6 +33,7 @@ CREDENTIAL_PHRASES = [
     "bank account",
     "social security number",
 ]
+
 
 FINANCIAL_SCAM_PHRASES = [
     "send money",
@@ -42,6 +46,7 @@ FINANCIAL_SCAM_PHRASES = [
     "inheritance",
     "prince",
 ]
+
 
 URL_SHORTENERS = {
     "bit.ly",
@@ -84,7 +89,30 @@ def is_ip_address(hostname: str):
     )
 
 
-def analyze_email(sender: str, subject: str, body: str):
+def get_email_domain(address: str):
+    if not address:
+        return ""
+
+    _, email_address = parseaddr(address)
+
+    if "@" not in email_address:
+        return ""
+
+    return email_address.rsplit("@", 1)[1].lower()
+
+
+def analyze_email(
+    sender: str,
+    subject: str,
+    body: str,
+    reply_to: str = "",
+    authentication_results: str = ""
+):
+    # Limit untrusted input size
+    sender = sender[:500]
+    subject = subject[:500]
+    body = body[:10000]
+
     score = 0
     reasons = []
 
@@ -185,17 +213,61 @@ def analyze_email(sender: str, subject: str, body: str):
 
     sender_lower = sender.lower()
 
+    # Punycode / lookalike sender domain
     if "xn--" in sender_lower:
         score += 20
         reasons.append(
             "Sender domain uses punycode and may imitate another domain"
         )
 
+    # From / Reply-To mismatch
+    sender_domain = get_email_domain(sender)
+    reply_to_domain = get_email_domain(reply_to)
+
+    if (
+        sender_domain
+        and reply_to_domain
+        and sender_domain != reply_to_domain
+    ):
+        score += 10
+        reasons.append(
+            "Reply-To domain differs from the sender domain"
+        )
+
+    # SPF / DKIM / DMARC authentication checks
+    auth_results = authentication_results.lower()
+
+    if re.search(
+        r"\bspf=(fail|softfail)\b",
+        auth_results
+    ):
+        score += 10
+        reasons.append(
+            "SPF authentication failed"
+        )
+
+    if re.search(
+        r"\bdkim=fail\b",
+        auth_results
+    ):
+        score += 10
+        reasons.append(
+            "DKIM authentication failed"
+        )
+
+    if re.search(
+        r"\bdmarc=fail\b",
+        auth_results
+    ):
+        score += 25
+        reasons.append(
+            "DMARC authentication failed"
+        )
+
     # --------------------------------------------------
     # 6. External analysis
     #
-    # Google Web Risk and OpenAI run in parallel.
-    # This reduces the total waiting time in Gmail.
+    # Google Web Risk and AI run in parallel.
     # --------------------------------------------------
 
     unique_urls = list(
@@ -248,7 +320,7 @@ def analyze_email(sender: str, subject: str, body: str):
 
             except Exception:
                 # External services should not crash
-                # the entire email scanner.
+                # the whole scanner.
                 continue
 
     # --------------------------------------------------
