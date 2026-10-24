@@ -83,7 +83,6 @@ Examples:
 
 Detection adds: +10
 
-
 ### Sensitive information
 
 Examples include requests or references to:
@@ -97,7 +96,6 @@ Examples include requests or references to:
 
 Detection adds: +20
 
-
 ### Financial scam language
 
 Examples:
@@ -109,8 +107,7 @@ Examples:
 - Million-dollar claims
 - Common advance-fee scam terminology
 
-Detection adds: +15
----
+## Detection adds: +15
 
 # URL Analysis
 
@@ -141,7 +138,6 @@ It checks URLs for categories including:
 - Unwanted software
 
 If Google Web Risk identifies a malicious URL: +90
-
 
 is added to the risk score.
 
@@ -186,7 +182,6 @@ Current AI score contribution:
 | High        |   +40 |
 
 The final score is always capped at: 100
-
 
 ---
 
@@ -242,15 +237,13 @@ Google Web Risk and AI analysis are external network operations.
 
 Instead of performing them sequentially, the backend executes them concurrently using Python's: ThreadPoolExecutor
 
-
 Conceptually:
-
 
                  ┌── Google Web Risk URL 1
                  ├── Google Web Risk URL 2
-Email analysis ──┼── Google Web Risk URL 3
-                 └── AI Analysis
 
+Email analysis ──┼── Google Web Risk URL 3
+└── AI Analysis
 
 The results are then combined into the final score.
 
@@ -275,7 +268,7 @@ This creates graceful degradation rather than a complete failure.
 For example:
 
 AI unavailable
-      ↓
+↓
 Local rules + Web Risk still work
 
 ---
@@ -320,7 +313,6 @@ Currently:
 
 MAX_URL_LOOKUPS = 3
 
-
 This helps protect against emails containing hundreds of URLs causing excessive API requests.
 
 ## Secrets
@@ -328,7 +320,6 @@ This helps protect against emails containing hundreds of URLs causing excessive 
 API keys are stored using environment variables.
 
 Examples:
-
 
 GOOGLE_WEB_RISK_API_KEY
 OPENAI_API_KEY
@@ -351,7 +342,6 @@ The Gmail add-on displays:
 
 For example:
 
-
 🚨 SECURITY ALERT
 
 Risk Score
@@ -372,28 +362,25 @@ Recommended action
 Do not click suspicious links or provide sensitive information.
 Verify the sender through an independent channel.
 
-
 ---
 
 # Project Structure
 
-
 malicious-email-scorer-gmail/
 │
 ├── addon/
-│   ├── Code.gs
-│   └── appsscript.json
+│ ├── Code.gs
+│ └── appsscript.json
 │
 ├── backend/
-│   ├── main.py
-│   ├── analyzer.py
-│   ├── ai_analyzer.py
-│   ├── web_risk.py
-│   └── requirements.txt
+│ ├── main.py
+│ ├── analyzer.py
+│ ├── ai_analyzer.py
+│ ├── web_risk.py
+│ └── requirements.txt
 │
 ├── .gitignore
 └── README.md
-
 
 ---
 
@@ -411,16 +398,13 @@ cd backend
 
 python3 -m venv venv
 
-
 Activate it on macOS/Linux:
 
 source venv/bin/activate
 
-
 Install dependencies:
 
 pip install -r requirements.txt
-
 
 ---
 
@@ -435,7 +419,6 @@ with:
 GOOGLE_WEB_RISK_API_KEY=your_google_api_key
 OPENAI_API_KEY=your_openai_api_key
 
-
 Do **not** commit this file to GitHub.
 
 ---
@@ -444,9 +427,7 @@ Do **not** commit this file to GitHub.
 
 From the `backend` directory:
 
-
 uvicorn main:app --reload
-
 
 The API will run locally on port 8000.
 
@@ -454,32 +435,27 @@ FastAPI provides an interactive Swagger interface at:
 
 /docs
 
-
 The main endpoint is:
 
-
 POST /analyze
-
 
 Example request:
 
 {
-  "sender": "Manager <manager@example.com>",
-  "subject": "Need your help",
-  "body": "Please buy five gift cards and send me the codes. Keep this confidential."
+"sender": "Manager <manager@example.com>",
+"subject": "Need your help",
+"body": "Please buy five gift cards and send me the codes. Keep this confidential."
 }
-
 
 Example response:
 
 {
-  "score": 40,
-  "verdict": "High Risk",
-  "reasons": [
-    "AI analysis: The message requests gift card codes and asks the recipient to keep the request confidential, which is consistent with common social-engineering scams."
-  ]
+"score": 40,
+"verdict": "High Risk",
+"reasons": [
+"AI analysis: The message requests gift card codes and asks the recipient to keep the request confidential, which is consistent with common social-engineering scams."
+]
 }
-
 
 ---
 
@@ -491,12 +467,10 @@ The source files are located in:
 
 addon/
 
-
 The project contains:
 
 Code.gs
 appsscript.json
-
 
 To test the add-on:
 
@@ -519,16 +493,12 @@ The FastAPI backend is deployed as a web service on Render.
 
 The deployed service requires these environment variables:
 
-
 GOOGLE_WEB_RISK_API_KEY
 OPENAI_API_KEY
 
-
 The production server command is:
 
-
 uvicorn main:app --host 0.0.0.0 --port $PORT
-
 
 The Gmail Apps Script calls the backend `/analyze` endpoint over HTTPS.
 
@@ -542,18 +512,15 @@ Several types of messages were used during development.
 
 Example:
 
-
 Subject: Meeting tomorrow
 
 Hi,
 Let's meet tomorrow at 10:00 to discuss the project.
 Thanks.
 
-
 Expected:
 
 Low Risk
-
 
 ---
 
@@ -565,11 +532,9 @@ Do not contact accounting about this.
 
 Keep this confidential.
 
-
 Expected:
 
 High Risk
-
 
 This test is particularly useful because it demonstrates why semantic analysis is valuable.
 
@@ -587,7 +552,6 @@ Expected:
 
 High Risk / Critical Risk
 
-
 depending on the additional indicators present.
 
 ---
@@ -599,6 +563,88 @@ A URL flagged by Google Web Risk should result in:
 Critical Risk
 
 with an explanation that external threat intelligence identified the URL.
+
+---
+
+## Sender Authentication Checks
+
+In addition to analyzing the email content and URLs, the backend evaluates several sender authentication signals supplied by Gmail.
+
+These checks help identify impersonation and spoofing attempts that may not contain obviously malicious text or URLs.
+
+### Reply-To mismatch
+
+The system compares the domain in the `From` address with the domain in the `Reply-To` address.
+
+For example:
+
+From: CEO <ceo@company.com>
+Reply-To: attacker@gmail.com
+
+If the domains differ, the system adds **10 points** to the risk score.
+
+A mismatch is not automatically considered malicious because legitimate mailing systems and support platforms may use a different Reply-To address. It is therefore treated as a moderate signal rather than definitive evidence.
+
+### SPF
+
+SPF (Sender Policy Framework) helps determine whether the mail server that delivered the message is authorized to send email for the sender's domain.
+
+If Gmail reports:
+
+spf=fail
+
+or:
+
+spf=softfail
+
+the system adds **10 points**.
+
+### DKIM
+
+DKIM (DomainKeys Identified Mail) uses a cryptographic signature to help verify that an email was sent by an authorized domain and that relevant parts of the message were not modified in transit.
+
+If Gmail reports:
+
+dkim=fail
+
+the system adds **10 points**.
+
+### DMARC
+
+DMARC builds on SPF and DKIM and checks whether the authenticated domain aligns with the domain presented to the recipient.
+
+If Gmail reports:
+
+dmarc=fail
+
+the system adds **25 points**.
+
+DMARC failure is given a higher weight because it can be a strong indicator of domain impersonation.
+
+### Punycode / Lookalike Domains
+
+The sender address is also checked for Punycode domains containing:
+
+xn--
+
+Internationalized domains are legitimate, but Punycode can also be used to create domains that visually resemble trusted brands or organizations.
+
+If detected, the system adds **20 points**.
+
+### Why Sender Authentication Is Only One Signal
+
+Sender authentication failures do not necessarily mean that an email is malicious.
+
+Forwarding, mailing lists, third-party email services, and configuration problems can cause legitimate messages to fail some authentication checks.
+
+For this reason, sender authentication is combined with:
+
+- Content heuristics
+- URL analysis
+- Google Web Risk threat intelligence
+- AI semantic analysis
+
+The final verdict is based on the combined evidence rather than any single indicator.
 
 ---
 
@@ -664,9 +710,9 @@ A more proactive enterprise implementation could use:
 
 Possible next steps include:
 
-1. SPF, DKIM and DMARC validation
-2. Reply-To mismatch detection
-3. Brand impersonation detection
+1. SPF, DKIM and DMARC validation - done
+2. Reply-To mismatch detection - done
+3. Brand impersonation detection - done
 4. Attachment scanning
 5. VirusTotal or additional threat-intelligence providers
 6. Domain-age and WHOIS analysis
@@ -698,7 +744,6 @@ AI is used as one security signal alongside deterministic rules and external rep
 
 This provides a balance between:
 predictability + contextual understanding + real-world threat intelligence
-
 
 ---
 
@@ -749,14 +794,11 @@ Malicious Email Scorer demonstrates a layered approach to email-security analysi
 
 Instead of relying on a single detection technique, it combines:
 
-Local Rules
-     +
-URL Analysis
-     +
-Google Web Risk
-     +
+Local Rules +
+URL Analysis +
+Google Web Risk +
 AI Semantic Analysis
-     ↓
+↓
 Explainable Risk Score
 
 The result is displayed directly inside Gmail, allowing the user to quickly understand both **how risky an email appears** and **why it received that score**.
