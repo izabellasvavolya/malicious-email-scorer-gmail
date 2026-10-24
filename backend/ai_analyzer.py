@@ -10,7 +10,8 @@ load_dotenv()
 
 client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
-    timeout=3
+    timeout=3,
+    max_retries=0
 )
 
 
