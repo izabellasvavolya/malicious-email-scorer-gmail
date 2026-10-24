@@ -1,3 +1,4 @@
+from ai_analyzer import analyze_email_with_ai
 import re
 from urllib.parse import urlparse
 
@@ -194,6 +195,28 @@ def analyze_email(sender: str, subject: str, body: str):
         reasons.append(
             "Sender domain uses punycode and may imitate another domain"
         )
+
+    # 7. AI semantic analysis
+    ai_analysis = analyze_email_with_ai(
+        sender=sender,
+        subject=subject,
+        body=body
+    )
+
+    if ai_analysis and ai_analysis.suspicious:
+
+        if ai_analysis.severity.value == "high":
+            score += 30
+
+        elif ai_analysis.severity.value == "medium":
+            score += 15
+
+        elif ai_analysis.severity.value == "low":
+            score += 5
+
+        reasons.append(
+            f"AI analysis: {ai_analysis.explanation}"
+        )    
 
     # Cap score at 100
     score = min(score, 100)
