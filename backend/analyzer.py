@@ -206,7 +206,7 @@ def analyze_email(sender: str, subject: str, body: str):
     if ai_analysis and ai_analysis.suspicious:
 
         if ai_analysis.severity.value == "high":
-            score += 30
+            score += 40
 
         elif ai_analysis.severity.value == "medium":
             score += 15
