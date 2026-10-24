@@ -1,6 +1,7 @@
 from ai_analyzer import analyze_email_with_ai
 import re
 from urllib.parse import urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from web_risk import check_url_reputation
 
@@ -89,9 +90,13 @@ def analyze_email(sender: str, subject: str, body: str):
 
     combined_text = f"{subject} {body}".lower()
 
+    # --------------------------------------------------
     # 1. Urgency / pressure
+    # --------------------------------------------------
+
     urgent_matches = [
-        phrase for phrase in URGENT_PHRASES
+        phrase
+        for phrase in URGENT_PHRASES
         if phrase in combined_text
     ]
 
@@ -101,9 +106,13 @@ def analyze_email(sender: str, subject: str, body: str):
             "Uses urgent or pressuring language"
         )
 
+    # --------------------------------------------------
     # 2. Sensitive information
+    # --------------------------------------------------
+
     credential_matches = [
-        phrase for phrase in CREDENTIAL_PHRASES
+        phrase
+        for phrase in CREDENTIAL_PHRASES
         if phrase in combined_text
     ]
 
@@ -113,9 +122,13 @@ def analyze_email(sender: str, subject: str, body: str):
             "Requests or references sensitive information"
         )
 
+    # --------------------------------------------------
     # 3. Financial scam language
+    # --------------------------------------------------
+
     financial_matches = [
-        phrase for phrase in FINANCIAL_SCAM_PHRASES
+        phrase
+        for phrase in FINANCIAL_SCAM_PHRASES
         if phrase in combined_text
     ]
 
@@ -125,7 +138,10 @@ def analyze_email(sender: str, subject: str, body: str):
             "Contains language commonly associated with financial scams"
         )
 
+    # --------------------------------------------------
     # 4. Local URL analysis
+    # --------------------------------------------------
+
     urls = extract_urls(body)
 
     for url in urls:
@@ -163,31 +179,10 @@ def analyze_email(sender: str, subject: str, body: str):
                 "Contains a malformed or unusual URL"
             )
 
-    # 5. External URL reputation
-    # Only check the first 3 unique URLs to prevent excessive API calls.
-    unique_urls = list(dict.fromkeys(urls))[:MAX_URL_LOOKUPS]
+    # --------------------------------------------------
+    # 5. Sender checks
+    # --------------------------------------------------
 
-    external_threats = set()
-
-    for url in unique_urls:
-        reputation = check_url_reputation(url)
-
-        if reputation["status"] == "match":
-            external_threats.update(
-                reputation["threat_types"]
-            )
-
-        if external_threats:
-            score += 90
-
-            readable_threats = ", ".join(
-                sorted(external_threats)
-            )
-
-            reasons.append(
-                f"External threat intelligence flags a URL as: {readable_threats}"
-            )   
-    # 6. Sender checks
     sender_lower = sender.lower()
 
     if "xn--" in sender_lower:
@@ -196,12 +191,85 @@ def analyze_email(sender: str, subject: str, body: str):
             "Sender domain uses punycode and may imitate another domain"
         )
 
-    # 7. AI semantic analysis
-    ai_analysis = analyze_email_with_ai(
-        sender=sender,
-        subject=subject,
-        body=body
-    )
+    # --------------------------------------------------
+    # 6. External analysis
+    #
+    # Google Web Risk and OpenAI run in parallel.
+    # This reduces the total waiting time in Gmail.
+    # --------------------------------------------------
+
+    unique_urls = list(
+        dict.fromkeys(urls)
+    )[:MAX_URL_LOOKUPS]
+
+    external_threats = set()
+    ai_analysis = None
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {}
+
+        # Start AI analysis
+        ai_future = executor.submit(
+            analyze_email_with_ai,
+            sender=sender,
+            subject=subject,
+            body=body
+        )
+
+        futures[ai_future] = "ai"
+
+        # Start Web Risk checks at the same time
+        for url in unique_urls:
+            web_risk_future = executor.submit(
+                check_url_reputation,
+                url
+            )
+
+            futures[web_risk_future] = "web_risk"
+
+        # Collect results as they finish
+        for future in as_completed(futures):
+            source = futures[future]
+
+            try:
+                result = future.result()
+
+                if source == "ai":
+                    ai_analysis = result
+
+                elif source == "web_risk":
+                    if (
+                        result
+                        and result.get("status") == "match"
+                    ):
+                        external_threats.update(
+                            result.get("threat_types", [])
+                        )
+
+            except Exception:
+                # External services should not crash
+                # the entire email scanner.
+                continue
+
+    # --------------------------------------------------
+    # 7. Apply Web Risk result
+    # --------------------------------------------------
+
+    if external_threats:
+        score += 90
+
+        readable_threats = ", ".join(
+            sorted(external_threats)
+        )
+
+        reasons.append(
+            f"External threat intelligence flags a URL as: "
+            f"{readable_threats}"
+        )
+
+    # --------------------------------------------------
+    # 8. Apply AI semantic analysis
+    # --------------------------------------------------
 
     if ai_analysis and ai_analysis.suspicious:
 
@@ -216,20 +284,30 @@ def analyze_email(sender: str, subject: str, body: str):
 
         reasons.append(
             f"AI analysis: {ai_analysis.explanation}"
-        )    
+        )
 
-    # Cap score at 100
+    # --------------------------------------------------
+    # 9. Final score
+    # --------------------------------------------------
+
     score = min(score, 100)
 
     # Remove duplicate explanations
     reasons = list(dict.fromkeys(reasons))
 
+    # --------------------------------------------------
+    # 10. Verdict
+    # --------------------------------------------------
+
     if score >= 70:
         verdict = "Critical Risk"
+
     elif score >= 40:
         verdict = "High Risk"
+
     elif score >= 20:
         verdict = "Suspicious"
+
     else:
         verdict = "Low Risk"
 

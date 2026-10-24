@@ -9,7 +9,8 @@ from pydantic import BaseModel
 load_dotenv()
 
 client = OpenAI(
-    api_key=os.getenv("OPENAI_API_KEY")
+    api_key=os.getenv("OPENAI_API_KEY"),
+    timeout=3
 )
 
 
@@ -58,6 +59,8 @@ def analyze_email_with_ai(
                         "Do not mark an email suspicious merely because it contains "
                         "normal business language. Be conservative and explain the "
                         "specific behavior that caused concern."
+                        "Keep the explanation concise: maximum 2 short sentences "
+                        "and no more than 250 characters."
                     ),
                 },
                 {
