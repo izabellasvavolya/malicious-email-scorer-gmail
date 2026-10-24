@@ -7,6 +7,40 @@ from email.utils import parseaddr
 
 from web_risk import check_url_reputation
 
+DANGEROUS_ATTACHMENT_EXTENSIONS = {
+    ".exe",
+    ".scr",
+    ".bat",
+    ".cmd",
+    ".com",
+    ".msi",
+    ".ps1",
+    ".vbs",
+    ".vbe",
+    ".js",
+    ".jse",
+    ".jar",
+    ".lnk",
+}
+
+MACRO_ATTACHMENT_EXTENSIONS = {
+    ".docm",
+    ".xlsm",
+    ".pptm",
+}
+
+ARCHIVE_ATTACHMENT_EXTENSIONS = {
+    ".zip",
+    ".rar",
+    ".7z",
+    ".iso",
+    ".img",
+}
+
+ACTIVE_CONTENT_EXTENSIONS = {
+    ".html",
+    ".htm",
+}
 
 MAX_URL_LOOKUPS = 3
 
@@ -106,12 +140,16 @@ def analyze_email(
     subject: str,
     body: str,
     reply_to: str = "",
-    authentication_results: str = ""
+    authentication_results: str = "",
+    attachments: list[dict] | None = None
 ):
     # Limit untrusted input size
     sender = sender[:500]
     subject = subject[:500]
     body = body[:10000]
+
+    if attachments is None:
+        attachments = []
 
     score = 0
     reasons = []
@@ -263,6 +301,95 @@ def analyze_email(
         reasons.append(
             "DMARC authentication failed"
         )
+
+        # --------------------------------------------------
+    # 6. Attachment metadata analysis
+    # --------------------------------------------------
+
+    attachment_score = 0
+
+    for attachment in attachments[:10]:
+        name = str(
+            attachment.get("name", "")
+        ).lower()[:300]
+
+        content_type = str(
+            attachment.get("content_type", "")
+        ).lower()
+
+        size = int(
+            attachment.get("size", 0) or 0
+        )
+
+        extension = ""
+
+        if "." in name:
+            extension = "." + name.rsplit(".", 1)[1]
+
+        if extension in DANGEROUS_ATTACHMENT_EXTENSIONS:
+            attachment_score += 30
+            reasons.append(
+                f"Contains a potentially dangerous attachment: {name}"
+            )
+
+        elif extension in MACRO_ATTACHMENT_EXTENSIONS:
+            attachment_score += 20
+            reasons.append(
+                f"Contains a macro-enabled Office attachment: {name}"
+            )
+
+        elif extension in ARCHIVE_ATTACHMENT_EXTENSIONS:
+            attachment_score += 10
+            reasons.append(
+                f"Contains an archive or disk-image attachment: {name}"
+            )
+
+        elif extension in ACTIVE_CONTENT_EXTENSIONS:
+            attachment_score += 15
+            reasons.append(
+                f"Contains an HTML attachment that may contain active content: {name}"
+            )
+
+        if (
+            "application/x-msdownload" in content_type
+            or "application/x-executable" in content_type
+        ):
+            attachment_score += 20
+            reasons.append(
+                f"Attachment MIME type indicates executable content: {name}"
+            )
+
+        parts = name.split(".")
+
+        if len(parts) >= 3:
+            final_extension = "." + parts[-1]
+            previous_extension = "." + parts[-2]
+
+            common_document_extensions = {
+                ".pdf",
+                ".doc",
+                ".docx",
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".txt",
+            }
+
+            if (
+                previous_extension in common_document_extensions
+                and final_extension in DANGEROUS_ATTACHMENT_EXTENSIONS
+            ):
+                attachment_score += 20
+                reasons.append(
+                    f"Attachment uses a suspicious double extension: {name}"
+                )
+
+        if size > 25 * 1024 * 1024:
+            reasons.append(
+                f"Attachment is unusually large: {name}"
+            )
+
+    score += min(attachment_score, 40)    
 
     # --------------------------------------------------
     # 6. External analysis
