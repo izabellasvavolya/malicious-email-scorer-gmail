@@ -1294,3 +1294,13 @@ Risk Score + Verdict + Reasons
 ```
 
 The result is displayed directly inside Gmail so the user can quickly understand how risky an email appears and why it received that score.
+
+
+
+## Thanks
+
+Thanks for taking the time to review my project.
+
+I really enjoyed working on this assignment. It was fun to build, test different phishing scenarios, and improve the detection step by step.
+
+It also gave me a chance to combine security concepts, backend development, APIs, and Gmail integration in one project.
