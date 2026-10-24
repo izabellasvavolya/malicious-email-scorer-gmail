@@ -389,7 +389,7 @@ def analyze_email(
                 f"Attachment is unusually large: {name}"
             )
 
-    score += min(attachment_score, 40)    
+    score += min(attachment_score, 60)    
 
     # --------------------------------------------------
     # 6. External analysis
