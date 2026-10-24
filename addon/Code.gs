@@ -13,14 +13,40 @@ function onGmailMessage(e) {
 
     const message = GmailApp.getMessageById(messageId);
 
-    // Data sent to FastAPI
+    // --------------------------------------------------
+    // ATTACHMENT METADATA
+    // --------------------------------------------------
+
+    const attachments = message.getAttachments({
+      includeInlineImages: false,
+      includeAttachments: true,
+    });
+
+    const attachmentMetadata = attachments.map(function (attachment) {
+      return {
+        name: attachment.getName() || "",
+        content_type: attachment.getContentType() || "",
+        size: attachment.getSize(),
+      };
+    });
+
+    // --------------------------------------------------
+    // DATA SENT TO FASTAPI
+    // --------------------------------------------------
+
     const payload = {
       sender: message.getFrom(),
+      reply_to: message.getReplyTo(),
+      authentication_results: message.getHeader("Authentication-Results"),
       subject: message.getSubject(),
       body: message.getPlainBody(),
+      attachments: attachmentMetadata,
     };
 
-    // Send email to backend
+    // --------------------------------------------------
+    // SEND TO BACKEND
+    // --------------------------------------------------
+
     const response = UrlFetchApp.fetch(BACKEND_URL, {
       method: "post",
       contentType: "application/json",
@@ -30,7 +56,10 @@ function onGmailMessage(e) {
 
     const statusCode = response.getResponseCode();
 
-    // Backend error
+    // --------------------------------------------------
+    // BACKEND ERROR
+    // --------------------------------------------------
+
     if (statusCode !== 200) {
       return [
         CardService.newCardBuilder()
@@ -164,7 +193,6 @@ function onGmailMessage(e) {
 
     return [card];
   } catch (error) {
-    // Catch unexpected errors so the add-on does not just crash
     return [
       CardService.newCardBuilder()
         .setHeader(
