@@ -1,6 +1,11 @@
 import re
 from urllib.parse import urlparse
 
+from web_risk import check_url_reputation
+
+
+MAX_URL_LOOKUPS = 3
+
 
 URGENT_PHRASES = [
     "urgent",
@@ -54,7 +59,7 @@ def extract_urls(text: str):
     normalized_urls = []
 
     for url in urls:
-        # Remove punctuation sometimes attached to the end of a URL
+        # Remove punctuation sometimes attached to the URL
         url = url.rstrip(".,);]")
 
         if url.startswith("www."):
@@ -119,7 +124,7 @@ def analyze_email(sender: str, subject: str, body: str):
             "Contains language commonly associated with financial scams"
         )
 
-    # 4. URL analysis
+    # 4. Local URL analysis
     urls = extract_urls(body)
 
     for url in urls:
@@ -157,7 +162,32 @@ def analyze_email(sender: str, subject: str, body: str):
                 "Contains a malformed or unusual URL"
             )
 
-    # 5. Sender checks
+    # 5. External URL reputation
+    # Only check the first 3 unique URLs to prevent excessive API calls.
+    unique_urls = list(dict.fromkeys(urls))[:MAX_URL_LOOKUPS]
+
+    external_threats = set()
+
+    for url in unique_urls:
+        reputation = check_url_reputation(url)
+
+        if reputation["status"] == "match":
+            external_threats.update(
+                reputation["threat_types"]
+            )
+
+    if external_threats:
+        score += 50
+
+        readable_threats = ", ".join(
+            sorted(external_threats)
+        )
+
+        reasons.append(
+            f"External threat intelligence flags a URL as: {readable_threats}"
+        )
+
+    # 6. Sender checks
     sender_lower = sender.lower()
 
     if "xn--" in sender_lower:
@@ -166,6 +196,7 @@ def analyze_email(sender: str, subject: str, body: str):
             "Sender domain uses punycode and may imitate another domain"
         )
 
+    # Cap score at 100
     score = min(score, 100)
 
     # Remove duplicate explanations
@@ -188,5 +219,5 @@ def analyze_email(sender: str, subject: str, body: str):
     return {
         "score": score,
         "verdict": verdict,
-        "reasons": reasons
+        "reasons": reasons,
     }
