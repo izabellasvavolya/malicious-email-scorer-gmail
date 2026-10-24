@@ -177,7 +177,7 @@ def analyze_email(sender: str, subject: str, body: str):
             )
 
     if external_threats:
-        score += 50
+        score += 70
 
         readable_threats = ", ".join(
             sorted(external_threats)
